@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flash Arcade</title>
+<script>
+try{var m=localStorage.getItem('fa-theme')||'auto';
+document.documentElement.dataset.theme=(m==='dark'||(m==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light'}catch(e){}
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flash">
+<meta name="theme-color" content="#ece8f5">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#ece8f5; --ink:#1d1730; --muted:#6b6483; --card:#fff; --accent:#e8420c; --line:#d6cfe6;
+  --chip:#f3f0fa; --danger:#c2185b; --bar:#1d1730;
+  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#15111f; --ink:#efeaff; --muted:#a79fc2; --card:#211b30; --accent:#ff6a3a; --line:#352d4b;
+  --chip:#2d2542; --danger:#ff6b9a; --bar:#15111f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--bar);z-index:5}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pill{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font:600 .85rem var(--font);cursor:pointer}
+h1{font-size:2rem;line-height:1.1;margin:8px 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 20px;line-height:1.4}
+.add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;border:0;border-radius:18px;
+  background:var(--accent);color:#fff;font:700 1.05rem var(--font);cursor:pointer}
+.add:active{transform:scale(.98)}
+.add input{display:none}
+body.drag .add{outline:3px dashed var(--ink);outline-offset:3px}
+.msg{min-height:1.4em;margin:10px 2px;font-size:.9rem;color:var(--muted)}
+.msg.err{color:var(--danger)}
+ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:10px}
+li{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px}
+.tile{flex:none;width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:1.4rem;color:#fff}
+.play{flex:1;min-width:0;text-align:left;background:none;border:0;padding:6px 4px;font:inherit;color:inherit;cursor:pointer}
+.play b{display:block;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.play small{color:var(--muted)}
+.icon{flex:none;border:0;background:var(--chip);color:var(--ink);border-radius:10px;padding:10px 12px;font:600 .85rem var(--font);cursor:pointer}
+.icon.del{color:var(--danger)}
+.empty{text-align:center;color:var(--muted);padding:36px 12px;border:2px dashed var(--line);border-radius:16px;line-height:1.5}
+.tip{margin-top:28px;font-size:.85rem;color:var(--muted);line-height:1.5}
+
+/* player */
+#player{position:fixed;left:0;top:0;width:100%;height:100vh;height:100lvh;background:#000;z-index:10;display:none;overflow:hidden}
+#player.on{display:block}
+#stage{position:absolute;inset:0;background:#000}
+#stage ruffle-player{display:block;width:100%;height:100%}
+#loading{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:600 1rem var(--font);opacity:.8;pointer-events:none;text-align:center;padding:20px}
+#menuBtn{position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;border:0;padding:0;
+  background:rgba(29,23,48,.6);color:#fff;font:700 18px var(--font);opacity:.5;z-index:4;cursor:grab;
+  touch-action:none;-webkit-user-select:none;user-select:none;transition:opacity .15s;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#menuBtn.active{opacity:1}
+#menu{position:absolute;display:none;z-index:5;background:var(--card);border-radius:14px;padding:6px;
+  box-shadow:0 8px 30px rgba(0,0,0,.35);min-width:200px;max-height:calc(100% - 12px);overflow:auto}
+#menu.on{display:block}
+#menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:11px 14px;font:600 1rem var(--font);color:var(--ink);border-radius:10px;cursor:pointer}
+#menu button:active{background:var(--chip)}
+#menu button[hidden]{display:none}
+#menu small{display:block;padding:4px 14px 8px;color:var(--muted);font-size:.75rem}
+html.playing,body.playing{background:#000}
+body.playing{overflow:hidden;position:fixed;width:100%}
+
+#dbg{position:absolute;inset:0;z-index:6;background:rgba(10,8,18,.96);color:#eee;display:none;flex-direction:column;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
+#dbg.on{display:flex}
+#dbg pre{flex:1;margin:8px 0;overflow:auto;font:11px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;touch-action:pan-y}
+#dbg .row{display:flex;gap:8px}
+#dbg button{flex:1;border:0;border-radius:10px;padding:12px;font:700 .9rem var(--font);background:var(--accent);color:#fff}
+/* on-screen controls */
+#player,#player *{touch-action:manipulation}
+#ctl{position:absolute;inset:0;pointer-events:none;z-index:2}
+#ctl[hidden]{display:none}
+#ctl,#ctl *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#dpad{position:absolute;pointer-events:auto;touch-action:none;left:calc(18px + env(safe-area-inset-left));
+  bottom:calc(26px + env(safe-area-inset-bottom));width:150px;height:150px;border-radius:50%;
+  background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);opacity:.7}
+#dpad i{position:absolute;font-style:normal;font-size:26px;line-height:1;color:rgba(255,255,255,.55);width:34px;text-align:center}
+#dpad i.on{color:#fff}
+#dpad i[data-d=u]{left:58px;top:10px} #dpad i[data-d=d]{left:58px;bottom:10px}
+#dpad i[data-d=l]{left:8px;top:62px} #dpad i[data-d=r]{right:8px;top:62px}
+#acts{position:absolute;pointer-events:auto;right:calc(18px + env(safe-area-inset-right));
+  bottom:calc(26px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(2,64px);gap:12px;opacity:.75}
+#acts button{touch-action:none;width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.35);
+  background:rgba(255,255,255,.14);color:#fff;font:800 1.2rem var(--font);padding:0;line-height:1.1}
+#acts button small{display:block;font:600 .6rem var(--font);opacity:.7}
+#acts button.on{background:rgba(255,255,255,.45)}
+#acts #start{grid-column:1/3;width:auto;height:36px;border-radius:999px;font-size:.8rem}
+@media (max-height:480px){
+  #dpad{width:128px;height:128px} #dpad i[data-d=u],#dpad i[data-d=d]{left:47px} #dpad i[data-d=l],#dpad i[data-d=r]{top:50px}
+  #acts{grid-template-columns:repeat(2,56px);gap:10px} #acts button{width:56px;height:56px}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><h1>Flash Arcade</h1><button id="theme" class="pill" type="button"></button></div>
+  <p class="sub">Import Flash games (.swf or .zip) and play them full screen with the Ruffle emulator. Everything stays on this device.</p>
+
+  <label class="add">
+    Import SWF or ZIP files
+    <!-- no accept filter on purpose: iOS greys out file types it does not know, like .swf -->
+    <input id="file" type="file" multiple>
+  </label>
+  <div id="msg" class="msg" role="status"></div>
+
+  <ul id="list"></ul>
+
+  <p class="tip">Games made of a .swf plus a data folder (levels, sounds, xml, images) work too: zip the game folder and import the .zip. Game saves are kept by the browser on this device. On iPhone, tap Share, then Add to Home Screen, so Safari does not clear them. Ruffle loads from the internet on first use and is cached afterwards; for fully offline use, put Ruffle's self-hosted files in a folder called ruffle next to this page.</p>
+</main>
+
+<div id="player" aria-label="Game">
+  <div id="stage"></div>
+  <div id="loading"></div>
+  <div id="ctl" hidden>
+    <div id="dpad"><i data-d="u">&#9650;</i><i data-d="d">&#9660;</i><i data-d="l">&#9664;</i><i data-d="r">&#9654;</i></div>
+    <div id="acts">
+      <button id="start" data-i="4">Start</button>
+      <button data-i="2">C</button><button data-i="3">D</button>
+      <button data-i="0">A</button><button data-i="1">B</button>
+    </div>
+  </div>
+  <div id="dbg"><b>Debug log</b><pre id="dbgText"></pre><div class="row"><button id="dbgCopy">Copy</button><button id="dbgClose">Close</button></div></div>
+  <button id="menuBtn" aria-label="Game menu">&#8942;</button>
+  <div id="menu">
+    <button id="reload">Restart game</button>
+    <button id="fixBtn">Refresh screen</button>
+    <button id="fsBtn" hidden>Fullscreen</button>
+    <button id="ctlBtn">Touch controls: Off</button>
+    <button id="keysBtn" hidden>Edit buttons</button>
+    <button id="padBtn" hidden>D-pad keys: Arrows</button>
+    <button id="scaleBtn">Scale: Auto</button>
+    <button id="qualBtn">Quality: High</button>
+    <button id="rendBtn">Renderer: Auto</button>
+    <button id="rotBtn">Rotate sideways: Off</button>
+    <button id="dbgBtn">Debug log</button>
+    <button id="exit">Back to library</button>
+    <small>Drag the round button to move it</small>
+  </div>
+</div>
+
+<script>
+(function(){
+  var DB='flash-arcade', STORE='games', db;
+  var $=function(id){return document.getElementById(id)};
+  var list=$('list'), msg=$('msg'), current=null, rp=null;
+  var COARSE=matchMedia('(pointer: coarse)').matches;
+
+  /* ---------- storage (same layout as Pocket Arcade) ---------- */
+  function open(){
+    return new Promise(function(res,rej){
+      var r=indexedDB.open(DB,1);
+      r.onupgradeneeded=function(){
+        var d=r.result;
+        if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});
+        if(!d.objectStoreNames.contains('files')) d.createObjectStore('files');
+      };
+      r.onsuccess=function(){res(r.result)};
+      r.onerror=function(){rej(r.error)};
+    });
+  }
+  function tx(mode,fn){
+    return new Promise(function(res,rej){
+      var t=db.transaction(STORE,mode), s=t.objectStore(STORE), out=fn(s);
+      t.oncomplete=function(){res(out&&out.result)};
+      t.onerror=t.onabort=function(){rej(t.error)};
+    });
+  }
+  var all=function(){return tx('readonly',function(s){return s.getAll()})};
+  var get=function(id){return tx('readonly',function(s){return s.get(id)})};
+  var put=function(g){return tx('readwrite',function(s){return s.put(g)})};
+  var del=function(id){return tx('readwrite',function(s){return s.delete(id)})};
+  function putFiles(id,files){
+    return new Promise(function(res,rej){
+      var t=db.transaction('files','readwrite'), s=t.objectStore('files');
+      files.forEach(function(f){s.put({type:f.type,data:f.data},id+'/'+f.path)});
+      t.oncomplete=res; t.onerror=t.onabort=function(){rej(t.error)};
+    });
+  }
+  function delFiles(id){
+    return new Promise(function(res,rej){
+      var t=db.transaction('files','readwrite');
+      t.objectStore('files').delete(IDBKeyRange.bound(id+'/',id+'/\uffff'));
+      t.oncomplete=res; t.onerror=t.onabort=function(){rej(t.error)};
+    });
+  }
+
+  /* ---------- zip support (own reader + built-in DecompressionStream) ---------- */
+  var MIME={swf:'application/x-shockwave-flash',xml:'application/xml',json:'application/json',txt:'text/plain',html:'text/html',
+    png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',svg:'image/svg+xml',
+    mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav',m4a:'audio/mp4',mp4:'video/mp4',flv:'video/x-flv',webm:'video/webm',css:'text/css',js:'text/javascript'};
+  function mime(p){return MIME[p.split('.').pop().toLowerCase()]||'application/octet-stream'}
+
+  function inflate(bytes){
+    var s=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(s).arrayBuffer();
+  }
+  async function readZip(buf){
+    if(typeof DecompressionStream==='undefined') throw new Error('needs iOS 16.4 or newer to unzip');
+    var dv=new DataView(buf), u8=new Uint8Array(buf), dec=new TextDecoder(), i=buf.byteLength-22, out=[];
+    for(;i>=0&&dv.getUint32(i,true)!==0x06054b50;i--);
+    if(i<0) throw new Error('not a valid zip');
+    var count=dv.getUint16(i+10,true), p=dv.getUint32(i+16,true);
+    for(var n=0;n<count;n++){
+      if(dv.getUint32(p,true)!==0x02014b50) break;
+      var method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true),
+          nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), off=dv.getUint32(p+42,true);
+      var name=dec.decode(u8.subarray(p+46,p+46+nl)).replace(/\\/g,'/');
+      p+=46+nl+el+cl;
+      if(name.slice(-1)==='/'||/(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)/.test(name)) continue;
+      var start=off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true);
+      var raw=u8.subarray(start,start+csize), data;
+      if(method===0) data=raw.slice().buffer;
+      else if(method===8) data=await inflate(raw);
+      else throw new Error('unsupported compression');
+      out.push({path:name,data:data,type:mime(name)});
+    }
+    return out;
+  }
+  function stripRoot(files){
+    var first=files[0].path.split('/')[0]+'/';
+    if(files.every(function(f){return f.path.indexOf(first)===0&&f.path.length>first.length}))
+      files.forEach(function(f){f.path=f.path.slice(first.length)});
+  }
+  // all .swf files, best candidate for the main game first:
+  // closest to the top of the zip, then named like index/main/game, then the biggest
+  function listSwfs(files){
+    var hint=/(^|\/)(index|main|game|start|play)[^\/]*\.swf$/i;
+    return files.filter(function(f){return /\.swf$/i.test(f.path)}).sort(function(a,b){
+      return (a.path.split('/').length-b.path.split('/').length)||(hint.test(b.path)-hint.test(a.path))||(b.data.byteLength-a.data.byteLength);
+    }).map(function(f){return f.path});
+  }
+  function isZip(h){return h[0]===0x50&&h[1]===0x4b}
+  function isSwf(h){return (h[0]===0x46||h[0]===0x43||h[0]===0x5a)&&h[1]===0x57&&h[2]===0x53}
+  function nameOf(fn){return fn.replace(/\.(zip|swf)$/i,'').replace(/[_]+/g,' ').trim()||fn}
+
+  async function importFile(f,i){
+    var buf=await f.arrayBuffer(), head=new Uint8Array(buf,0,Math.min(4,buf.byteLength)), rec, files;
+    if(isZip(head)){
+      files=await readZip(buf);
+      if(!files.length) throw new Error('zip is empty');
+      stripRoot(files);
+      var swfs=listSwfs(files);
+      if(!swfs.length) throw new Error('no .swf file inside');
+      rec={title:nameOf(f.name),kind:'zip',entry:swfs[0],swfs:swfs,files:files.length,size:f.size,added:Date.now()+i};
+    }else if(isSwf(head)){
+      var fn=f.name.replace(/[\/\\]/g,'_');
+      files=[{path:fn,data:buf,type:MIME.swf}];
+      rec={title:nameOf(f.name),kind:'swf',entry:fn,swfs:[fn],files:1,size:f.size,added:Date.now()+i};
+    }else throw new Error('not a SWF or ZIP');
+    var id=await put(rec);
+    try{await putFiles(id,files)}catch(e){await del(id);throw e}
+  }
+
+  /* ---------- library ---------- */
+  function say(t,err){msg.textContent=t||'';msg.className='msg'+(err?' err':'')}
+  function esc(s){return s.replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function hue(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return h}
+  function size(n){return n>1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+
+  async function render(){
+    var games=(await all()).sort(function(a,b){return b.added-a.added});
+    if(!games.length){
+      list.innerHTML='<li class="empty" style="display:block">No games yet. Tap Import and choose a .swf or a .zip from Files, iCloud Drive or Downloads.</li>';
+      return;
+    }
+    list.innerHTML=games.map(function(g){
+      var letter=esc((g.title.trim()[0]||'?').toUpperCase());
+      return '<li data-id="'+g.id+'">'+
+        '<div class="tile" style="background:hsl('+hue(g.title)+' 62% 46%)">'+letter+'</div>'+
+        '<button class="play" data-act="play"><b>'+esc(g.title)+'</b><small>'+(g.kind==='zip'?'Zip game, '+g.files+' files, ':'Flash game, ')+size(g.size)+'</small></button>'+
+        (g.swfs&&g.swfs.length>1?'<button class="icon" data-act="main">Main file</button>':'')+
+        '<button class="icon" data-act="rename">Rename</button>'+
+        '<button class="icon del" data-act="del">Delete</button></li>';
+    }).join('');
+  }
+
+  async function importFiles(fl){
+    var files=Array.prototype.slice.call(fl||[]), ok=0, bad=[];
+    say('Importing…');
+    for(var i=0;i<files.length;i++){
+      try{await importFile(files[i],i);ok++}
+      catch(err){bad.push(files[i].name+' ('+(err.message||'error')+')')}
+    }
+    say(ok?('Added '+ok+' '+(ok===1?'game':'games')+'.'):'', false);
+    if(bad.length) say('Could not read: '+bad.join(', '),true);
+    render();
+  }
+  $('file').addEventListener('change',function(e){importFiles(e.target.files);e.target.value=''});
+  ['dragenter','dragover'].forEach(function(t){window.addEventListener(t,function(e){e.preventDefault();document.body.classList.add('drag')})});
+  ['dragleave','drop'].forEach(function(t){window.addEventListener(t,function(e){e.preventDefault();document.body.classList.remove('drag')})});
+  window.addEventListener('drop',function(e){if(e.dataTransfer&&e.dataTransfer.files.length&&!current)importFiles(e.dataTransfer.files)});
+
+  list.addEventListener('click',async function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    var li=b.closest('li'), id=Number(li.dataset.id), act=b.dataset.act, g=await get(id);
+    if(act==='play') play(id);
+    if(act==='rename'){
+      var n=prompt('Rename game',g.title);
+      if(n&&n.trim()){g.title=n.trim();await put(g);render()}
+    }
+    if(act==='main'){
+      var v=prompt('Which file starts the game? Type its number:\n'+g.swfs.map(function(p,i){return (i+1)+'. '+p}).join('\n'),String(g.swfs.indexOf(g.entry)+1));
+      var k=parseInt(v,10)-1;
+      if(g.swfs[k]){g.entry=g.swfs[k];await put(g)}
+    }
+    if(act==='del'){
+      if(confirm('Delete "'+g.title+'" from this device?')){await del(id);await delFiles(id);render()}
+    }
+  });
+
+  /* ---------- debug log: Ruffle messages + files the game asked for that are missing ---------- */
+  var LOG=[], hidden=0;
+  function plog(t){
+    if(/non-registered character/.test(t)){hidden++;return}   // harmless: the game probes its image cache this way
+    var last=LOG[LOG.length-1];
+    if(last&&last.t===t){last.n++;return}
+    LOG.push({t:t,n:1}); if(LOG.length>1500)LOG.shift();
+  }
+  function logText(){
+    var out=LOG.map(function(l){return l.t+(l.n>1?'  (x'+l.n+')':'')});
+    if(hidden) out.push('(+'+hidden+' harmless "non-registered character" notices hidden)');
+    return out.join('\n');
+  }
+  ['log','info','warn','error'].forEach(function(k){
+    var o=console[k]; console[k]=function(){
+      try{if(current){
+        var a=arguments, first=typeof a[0]==='string'?a[0]:null, m;
+        if(first&&first.indexOf('%c')>=0) m=first.replace(/%c/g,'').replace(/\s+/g,' ');   // Ruffle's coloured format: drop the CSS arguments
+        else m=Array.prototype.map.call(a,function(x){return typeof x==='string'?x:(x&&x.message)||String(x)}).join(' ');
+        plog('['+k+'] '+m.slice(0,400));
+      }}catch(e){}
+      return o.apply(console,arguments);
+    };
+  });
+  window.addEventListener('error',function(e){if(current)plog('[error] '+e.message)});
+  window.addEventListener('unhandledrejection',function(e){if(current)plog('[rejected] '+((e.reason&&e.reason.message)||e.reason))});
+  if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',function(e){
+    if(e.data&&e.data.t==='miss'&&current) plog('[404 missing file] '+decodeURIComponent(e.data.url.replace(/^.*\/play\/\d+\//,'')));
+  });
+
+  /* ---------- Ruffle ---------- */
+  var CDN='https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle/ruffle.js', ruffleP=null;
+  function loadScript(src){
+    return new Promise(function(res,rej){
+      var s=document.createElement('script'); s.src=src; s.onload=res;
+      s.onerror=function(){s.remove();rej(new Error('could not load '+src))};
+      document.head.appendChild(s);
+    });
+  }
+  function ruffleOk(){
+    var R=window.RufflePlayer&&window.RufflePlayer.newest&&window.RufflePlayer.newest();
+    if(!R) throw new Error('Ruffle missing'); return R;
+  }
+  function ensureRuffle(){
+    if(ruffleP) return ruffleP;
+    window.RufflePlayer=window.RufflePlayer||{};
+    window.RufflePlayer.config={logLevel:'warn',maxExecutionDuration:60,splashScreen:false,contextMenu:'off',letterbox:'on',warnOnUnsupportedContent:false};
+    // local copy first (works offline), then the CDN
+    ruffleP=loadScript('ruffle/ruffle.js').then(ruffleOk).catch(function(){return loadScript(CDN).then(ruffleOk)})
+      .catch(function(e){ruffleP=null;throw new Error('Could not load Ruffle. Connect to the internet once, or put its files in a "ruffle" folder.')});
+    return ruffleP;
+  }
+
+  /* ---------- virtual keyboard for touch controls ---------- */
+  var NAMED={space:['Space',' ',32],enter:['Enter','Enter',13],esc:['Escape','Escape',27],escape:['Escape','Escape',27],
+    shift:['ShiftLeft','Shift',16],ctrl:['ControlLeft','Control',17],control:['ControlLeft','Control',17],alt:['AltLeft','Alt',18],
+    tab:['Tab','Tab',9],backspace:['Backspace','Backspace',8],up:['ArrowUp','ArrowUp',38],down:['ArrowDown','ArrowDown',40],
+    left:['ArrowLeft','ArrowLeft',37],right:['ArrowRight','ArrowRight',39]};
+  function keyInfo(n){
+    var l=String(n).trim().toLowerCase();
+    if(NAMED[l]) return NAMED[l];
+    if(/^[a-z]$/.test(l)) return ['Key'+l.toUpperCase(),l,l.toUpperCase().charCodeAt(0)];
+    if(/^[0-9]$/.test(l)) return ['Digit'+l,l,l.charCodeAt(0)];
+    return null;
+  }
+  var held={};
+  function press(name,down){
+    var i=keyInfo(name), k=String(name).toLowerCase();
+    if(!i||!rp) return;
+    if(down){if(held[k]) return; held[k]=1}else{if(!held[k]) return; delete held[k]}
+    rp.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{key:i[1],code:i[0],keyCode:i[2],which:i[2],bubbles:true,cancelable:true,composed:true}));
+  }
+  function releaseAll(){Object.keys(held).forEach(function(k){press(k,false)})}
+
+  var DEF_KEYS=['Space','Z','X','C','Enter'];
+  function ctlState(){
+    if(!current.ctl) current.ctl={on:COARSE,wasd:false,keys:DEF_KEYS.slice()};
+    return current.ctl;
+  }
+  function dirKeys(){return ctlState().wasd?{u:'w',d:'s',l:'a',r:'d'}:{u:'up',d:'down',l:'left',r:'right'}}
+  var dpad=$('dpad'), ctlEl=$('ctl');
+  function padUpdate(e){
+    var r=dpad.getBoundingClientRect(), T=.3, k=dirKeys(),
+        dx=(e.clientX-(r.left+r.width/2))/(r.width/2), dy=(e.clientY-(r.top+r.height/2))/(r.height/2),
+        st={l:dx<-T,r:dx>T,u:dy<-T,d:dy>T};
+    ['u','d','l','r'].forEach(function(d){
+      press(k[d],st[d]);
+      dpad.querySelector('[data-d='+d+']').classList.toggle('on',st[d]);
+    });
+  }
+  function padEnd(){
+    releaseAll();
+    Array.prototype.forEach.call(dpad.querySelectorAll('i'),function(i){i.classList.remove('on')});
+  }
+  dpad.addEventListener('pointerdown',function(e){dpad.setPointerCapture(e.pointerId);padUpdate(e)});
+  dpad.addEventListener('pointermove',function(e){if(dpad.hasPointerCapture(e.pointerId))padUpdate(e)});
+  dpad.addEventListener('pointerup',padEnd);
+  dpad.addEventListener('pointercancel',padEnd);
+  Array.prototype.forEach.call($('acts').querySelectorAll('button'),function(b){
+    function up(){b.classList.remove('on');press(ctlState().keys[+b.dataset.i],false)}
+    b.addEventListener('pointerdown',function(e){b.setPointerCapture(e.pointerId);b.classList.add('on');press(ctlState().keys[+b.dataset.i],true)});
+    b.addEventListener('pointerup',up); b.addEventListener('pointercancel',up);
+  });
+  function refreshCtl(){
+    if(!current){ctlEl.hidden=true;return}
+    var c=ctlState();
+    ctlEl.hidden=!c.on;
+    Array.prototype.forEach.call($('acts').querySelectorAll('button'),function(b){
+      var i=+b.dataset.i, k=c.keys[i]||'', n=i===4?'Start':'ABCD'[i];
+      b.innerHTML=i===4?'Start':n+'<small>'+esc(k)+'</small>';
+    });
+  }
+
+  /* ---------- player ---------- */
+  var player=$('player'), stage=$('stage'), menu=$('menu'), loading=$('loading');
+  /* iOS zooms the page on a quick double tap; swallow the second tap while a game is open */
+  var lastTap=0;
+  player.addEventListener('touchend',function(e){
+    var now=Date.now();
+    if(now-lastTap<350&&e.cancelable) e.preventDefault();
+    lastTap=now;
+  },{passive:false});
+
+  var SCALES=[['auto','Auto'],['showAll','Fit'],['noBorder','Fill'],['exactFit','Stretch']], QUALS=['low','medium','high','best'], RENDS=[['auto','Auto'],['wgpu-webgl','wgpu'],['webgl','WebGL'],['canvas','Canvas']];
+
+  function teardown(){
+    releaseAll();
+    if(rp){try{rp.remove()}catch(e){} rp=null}
+    stage.innerHTML='';
+  }
+  async function launch(g){
+    teardown();
+    loading.textContent='Loading Ruffle…'; loading.style.display='grid';
+    try{
+      var R=await ensureRuffle();
+      if(!('serviceWorker' in navigator)) throw new Error('This browser cannot run saved games.');
+      await navigator.serviceWorker.ready;
+      if(!navigator.serviceWorker.controller) throw new Error('Almost ready: close and reopen the app once, then try again.');
+      if(current!==g) return false;
+      var url=new URL('play/'+g.id+'/'+g.entry.split('/').map(encodeURIComponent).join('/'),location.href).href;
+      rp=R.createPlayer(); stage.appendChild(rp);
+      var api=rp.ruffle?rp.ruffle():rp, opts={url:url,base:url.slice(0,url.lastIndexOf('/')+1),autoplay:'on',allowScriptAccess:true,quality:g.quality||'high'};
+      if(g.renderer&&g.renderer!=='auto') opts.preferredRenderer=g.renderer;
+      if(g.scale&&g.scale!=='auto'){opts.scale=g.scale;opts.forceScale=true}
+      loading.textContent='Loading game…';
+      await api.load(opts);
+      loading.style.display='none';
+      try{rp.focus()}catch(e){}
+      return true;
+    }catch(err){
+      say(err.message||'Could not start the game.',true);
+      return false;
+    }
+  }
+  async function play(id){
+    var g=await get(id); if(!g) return;
+    current=g; say(''); LOG=[]; hidden=0;
+    player.classList.add('on'); document.body.classList.add('playing'); document.documentElement.classList.add('playing');
+    menu.classList.remove('on'); paintRoot('#000'); vp.setAttribute('content',VPLOCK); relayout(); refreshCtl();
+    if(!(await launch(g))) exit(true); else setTimeout(kickViewport,500);
+  }
+  function exit(keepMsg){
+    teardown(); padEnd();
+    player.classList.remove('on'); document.body.classList.remove('playing'); document.documentElement.classList.remove('playing');
+    menu.classList.remove('on'); $('dbg').classList.remove('on'); current=null; stage.style.cssText=''; ctlEl.hidden=true; clearRoot();
+    kicking=false; kickViewport(); // also resets any zoom left over
+
+    if(keepMsg!==true) say('');
+  }
+
+  /* iOS only repaints the area outside the page after a real viewport change, so toggle the viewport tag */
+  var vp=document.querySelector('meta[name=viewport]'), VP0=vp.getAttribute('content'),
+      tc=document.querySelector('meta[name=theme-color]'), kicking=false, VPLOCK=VP0+', maximum-scale=1, user-scalable=no';
+  function curVP(){return player.classList.contains('on')?VPLOCK:VP0}
+  function kickViewport(){
+    if(kicking) return; kicking=true;
+    vp.setAttribute('content',VP0+', maximum-scale=1');
+    setTimeout(function(){
+      vp.setAttribute('content',curVP());
+      setTimeout(function(){kicking=false;if(player.classList.contains('on'))relayout()},80);
+    },80);
+  }
+  function paintRoot(c){
+    var h=document.documentElement;
+    h.style.setProperty('background-color',c,'important');
+    document.body.style.setProperty('background-color',c,'important');
+    tc.content=c;
+  }
+  function clearRoot(){
+    document.documentElement.style.removeProperty('background-color');
+    document.body.style.removeProperty('background-color');
+    applyTheme(getMode());
+  }
+
+  /* draggable menu button */
+  var btn=$('menuBtn'), M=6, TOP0=50, BOT0=40, btnPos={x:1,y:.5}, drag=null;
+  try{var sp=JSON.parse(localStorage.getItem('fa-btn')||'null');if(sp&&isFinite(sp.x)&&isFinite(sp.y))btnPos=sp}catch(e){}
+  function clamp(v){return Math.min(1,Math.max(0,v))}
+  function PW(){return player.clientWidth||innerWidth}
+  function PH(){return player.clientHeight||innerHeight}
+  function applyPos(){
+    var w=btn.offsetWidth||40, h=btn.offsetHeight||40;
+    btn.style.left=(M+btnPos.x*Math.max(0,PW()-w-2*M))+'px';
+    btn.style.top=(TOP0+btnPos.y*Math.max(0,PH()-h-TOP0-BOT0))+'px';
+  }
+  function setFromPx(l,t){
+    var w=btn.offsetWidth, h=btn.offsetHeight;
+    btnPos.x=clamp((l-M)/Math.max(1,PW()-w-2*M));
+    btnPos.y=clamp((t-TOP0)/Math.max(1,PH()-h-TOP0-BOT0));
+    applyPos();
+  }
+  function positionMenu(){
+    var r=btn.getBoundingClientRect(), mw=menu.offsetWidth, mh=menu.offsetHeight;
+    var left=(r.left+r.width/2>PW()/2)?r.right-mw:r.left;
+    var top=(r.top+r.height/2>PH()/2)?r.top-mh-8:r.bottom+8;
+    menu.style.left=Math.max(6,Math.min(left,PW()-mw-6))+'px';
+    menu.style.top=Math.max(6,Math.min(top,PH()-mh-6))+'px';
+  }
+  function toggleMenu(){if(menu.classList.toggle('on')){refreshMenu();positionMenu()}}
+  btn.addEventListener('pointerdown',function(e){
+    btn.setPointerCapture(e.pointerId);
+    var r=btn.getBoundingClientRect();
+    drag={dx:e.clientX-r.left,dy:e.clientY-r.top,sx:e.clientX,sy:e.clientY,moved:false};
+    btn.classList.add('active');
+  });
+  btn.addEventListener('pointermove',function(e){
+    if(!drag) return;
+    if(!drag.moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>8){drag.moved=true;menu.classList.remove('on')}
+    if(drag.moved) setFromPx(e.clientX-drag.dx,e.clientY-drag.dy);
+  });
+  btn.addEventListener('pointerup',function(){
+    if(!drag) return;
+    if(drag.moved){
+      btnPos.x=btnPos.x<.5?0:1; applyPos();
+      try{localStorage.setItem('fa-btn',JSON.stringify(btnPos))}catch(e){}
+    }else toggleMenu();
+    drag=null; btn.classList.remove('active');
+  });
+  btn.addEventListener('pointercancel',function(){drag=null;btn.classList.remove('active')});
+
+  /* layout: optional sideways rotation for phones held upright */
+  function sizePlayer(){
+    var h=innerHeight, w=innerWidth, want=h;
+    if(navigator.standalone){
+      var sh=(w>=h)?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height);
+      if(sh>h&&sh-h<100) want=sh;
+    }
+    player.style.height=want+'px';
+  }
+  function layout(){
+    if(!current) return;
+    if(!current.rot){stage.style.cssText='';return}
+    var W=PW(), H=PH();
+    stage.style.cssText='inset:auto;width:'+H+'px;height:'+W+'px;left:'+((W-H)/2)+'px;top:'+((H-W)/2)+'px;transform:rotate(90deg)';
+  }
+  function relayout(){sizePlayer();layout();applyPos()}
+  window.addEventListener('resize',function(){if(player.classList.contains('on')){relayout();menu.classList.remove('on')}});
+  window.addEventListener('orientationchange',function(){setTimeout(function(){if(player.classList.contains('on'))relayout()},300)});
+
+  /* menu */
+  var fsEl=player;
+  function refreshMenu(){
+    var c=ctlState(), sc=SCALES.filter(function(s){return s[0]===(current.scale||'auto')})[0];
+    $('ctlBtn').textContent='Touch controls: '+(c.on?'On':'Off');
+    $('keysBtn').hidden=$('padBtn').hidden=!c.on;
+    $('padBtn').textContent='D-pad keys: '+(c.wasd?'WASD':'Arrows');
+    $('scaleBtn').textContent='Scale: '+sc[1];
+    $('qualBtn').textContent='Quality: '+(current.quality||'high').replace(/^./,function(x){return x.toUpperCase()});
+    $('rendBtn').textContent='Renderer: '+RENDS.filter(function(r){return r[0]===(current.renderer||'auto')})[0][1];
+    $('rotBtn').textContent='Rotate sideways: '+(current.rot?'On':'Off');
+    $('fsBtn').hidden=!(fsEl.requestFullscreen||fsEl.webkitRequestFullscreen);
+  }
+  function changed(){put(current);refreshCtl();refreshMenu();positionMenu()}
+  $('ctlBtn').addEventListener('click',function(){var c=ctlState();c.on=!c.on;padEnd();changed()});
+  $('padBtn').addEventListener('click',function(){var c=ctlState();padEnd();c.wasd=!c.wasd;changed()});
+  $('keysBtn').addEventListener('click',function(){
+    var c=ctlState(), v=prompt('Keys for buttons A, B, C, D and Start, separated by commas.\nExamples: Space, Z, X, C, Enter, Shift, Ctrl, Esc, a letter or a digit.',c.keys.join(', '));
+    if(v===null) return;
+    var parts=v.split(',').map(function(s){return s.trim()}), ok=parts.length===5&&parts.every(function(p){return keyInfo(p)});
+    if(!ok){alert('Please give exactly 5 valid keys.');return}
+    c.keys=parts; changed();
+  });
+  $('scaleBtn').addEventListener('click',function(){
+    var i=SCALES.map(function(s){return s[0]}).indexOf(current.scale||'auto');
+    current.scale=SCALES[(i+1)%SCALES.length][0]; put(current); menu.classList.remove('on'); launch(current);
+  });
+  $('qualBtn').addEventListener('click',function(){
+    var i=QUALS.indexOf(current.quality||'high');
+    current.quality=QUALS[(i+1)%QUALS.length]; put(current); menu.classList.remove('on'); launch(current);
+  });
+  $('rendBtn').addEventListener('click',function(){
+    var i=RENDS.map(function(r){return r[0]}).indexOf(current.renderer||'auto');
+    current.renderer=RENDS[(i+1)%RENDS.length][0]; put(current); menu.classList.remove('on'); launch(current);
+  });
+  $('rotBtn').addEventListener('click',function(){current.rot=!current.rot;put(current);layout();refreshMenu();positionMenu()});
+  $('fsBtn').addEventListener('click',function(){
+    menu.classList.remove('on');
+    (fsEl.requestFullscreen||fsEl.webkitRequestFullscreen).call(fsEl);
+  });
+  $('dbgBtn').addEventListener('click',function(){
+    menu.classList.remove('on');
+    $('dbgText').textContent=LOG.length?logText():'(nothing logged yet)';
+    $('dbg').classList.add('on');
+  });
+  $('dbgClose').addEventListener('click',function(){$('dbg').classList.remove('on')});
+  $('dbgCopy').addEventListener('click',function(){
+    var t=$('dbgText').textContent;
+    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).catch(function(){
+      var r=document.createRange();r.selectNodeContents($('dbgText'));var sel=getSelection();sel.removeAllRanges();sel.addRange(r);
+    });
+  });
+  $('fixBtn').addEventListener('click',function(){menu.classList.remove('on');kickViewport()});
+  $('reload').addEventListener('click',function(){if(!current) return;menu.classList.remove('on');launch(current)});
+  $('exit').addEventListener('click',function(){exit()});
+  window.addEventListener('load',function(){setTimeout(kickViewport,400)});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(kickViewport,300)});
+  document.addEventListener('gesturestart',function(e){if(player.classList.contains('on'))e.preventDefault()});
+
+  /* theme */
+  var themeBtn=$('theme'), MODES=['auto','dark','light'], mq=matchMedia('(prefers-color-scheme: dark)');
+  function getMode(){try{return localStorage.getItem('fa-theme')||'auto'}catch(e){return 'auto'}}
+  function applyTheme(m){
+    var dark=m==='dark'||(m==='auto'&&mq.matches);
+    document.documentElement.dataset.theme=dark?'dark':'light';
+    tc.content=dark?'#15111f':'#ece8f5';
+    themeBtn.textContent='Theme: '+m.charAt(0).toUpperCase()+m.slice(1);
+  }
+  themeBtn.addEventListener('click',function(){
+    var m=MODES[(MODES.indexOf(getMode())+1)%3];
+    try{localStorage.setItem('fa-theme',m)}catch(e){}
+    applyTheme(m);
+  });
+  if(mq.addEventListener) mq.addEventListener('change',function(){applyTheme(getMode())});
+  applyTheme(getMode());
+
+  open().then(function(d){db=d;render()}).catch(function(){
+    say('Storage is unavailable (private browsing?). Games cannot be saved here.',true);
+  });
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
+})();
+</script>
+</body>
+</html>
